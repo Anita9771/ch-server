@@ -1,9 +1,20 @@
 const User = require("../models/User");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const Admin = require("../models/Admin");
 
+// const rateLimit = require('express-rate-limit');
 exports.register = async (req, res) => {
-  const { name, email, password, category } = req.body;
+  const {
+    firstName,
+    lastName,
+    email,
+    password,
+    phoneNumber,
+    dateOfBirth,
+    address,
+    ssnLast4,
+  } = req.body;
 
   try {
     const existingUser = await User.findOne({ email });
@@ -13,10 +24,14 @@ exports.register = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const user = new User({
-      name,
+      firstName,
+      lastName,
       email,
       password: hashedPassword,
-      category,
+      phoneNumber,
+      dateOfBirth,
+      address,
+      ssnLast4,
     });
 
     await user.save();
@@ -30,6 +45,7 @@ exports.register = async (req, res) => {
       .json({ message: "Error registering user", error: err.message });
   }
 };
+
 
 exports.login = async (req, res) => {
   const { email, password } = req.body;
@@ -173,3 +189,40 @@ exports.forgotPassword = async (req, res) => {
       .json({ message: "Error processing forgot password request", error: err.message });
   }
 }
+
+// Add this to your existing authController.js
+exports.adminLogin = async (req, res) => {
+  const { username, password } = req.body;
+
+  try {
+    // Check if admin exists
+    const admin = await Admin.findOne({ username });
+    if (!admin) {
+      return res.status(404).json({ message: "Admin not found" });
+    }
+
+    // Compare password
+    const isMatch = await bcrypt.compare(password, admin.password);
+    if (!isMatch) {
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
+
+    // Generate JWT token
+    const token = jwt.sign({ id: admin._id }, process.env.JWT_SECRET, {
+      expiresIn: "1d",
+    });
+
+    res.json({ token, admin: { id: admin._id, username: admin.username } });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// const adminLoginLimiter = rateLimit({
+//   windowMs: 15 * 60 * 1000, // 15 minutes
+//   max: 5, // limit each IP to 5 requests per windowMs
+//   message: "Too many login attempts, please try again later"
+// });
+
+// exports.adminLoginLimiter = adminLoginLimiter;
